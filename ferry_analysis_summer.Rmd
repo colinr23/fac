@@ -1,0 +1,102 @@
+---
+title: "FAC-Summer 2023 Analysis"
+author: "C.Robertson"
+date: "2023-12-20"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+#knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+The time period covered by this data set is from May 2023 to Oct 2023. Note there is no 6:15 Gabriola sailing so charts below are empty not zeroes for those.
+
+
+```{r echo = FALSE, warning=FALSE, message=FALSE}
+library("readr")
+library("readxl")
+library("ggplot2")
+library("dplyr")
+library("lubridate")
+
+df <- read_excel("data/Rte 19 - Sail by Sail May 2023 - October 2023 single leg.xlsx", 
+     col_types = c("text", "text", "text", 
+         "text", "numeric", "date", "date", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric"))
+
+df$Hour <- as.numeric(format(df$`Sched Dept Ts`, '%H'))
+df$Year <- as.numeric(format(df$`Sched Dept Ts`, '%Y'))
+df$Month <- format(df$`Sched Dept Ts`, '%b')
+df$Day <- as.numeric(format(df$`Sched Dept Ts`, '%d'))
+df$Month <- factor(df$Month, levels = c("May", "Jun", "Jul", "Aug", "Sep", "Oct"))
+```
+
+
+
+## Comparison of overloaded traffic - morning and afternoon sailings
+
+
+```{r echo = FALSE, warning=FALSE, message=FALSE}
+#So, what I’d like to see is a comparison of the vehicle loads on the 7:35, 8:10 and 8:45 sailings from both Gabriola and Nanaimo in the mornings, with those on the 4:35, 5:05 and 6:15 sailings from Nanaimo in the evenings. If we could get average numbers (% loads, and size of overloads) for each month of the year, that would be ideal.
+
+
+df <- df %>% mutate(DayOfWeek = wday(`Sched Dept Ts`, label = TRUE))
+df <- df %>% mutate(date_time_dept = format(df$`Sched Dept Ts`, "%H:%M:%S"))
+df_am_pm = df %>% filter(date_time_dept %in% c("07:35:00", "08:09:59", "08:45:00", "16:35:00", "17:05:00", "18:14:59"))
+
+
+summary_data <- df_am_pm %>%
+  group_by(date_time_dept, `Departure Terminal`) %>%
+  summarize(TotalVehicles = sum(`Total Veh`),
+            TotalPassengers = sum(`Total Pass`), 
+            TotalOL = sum(`Total O/L`))
+
+# Total Vehicles by Time of Day as Faceted Bar Graph, split by Departure Terminal
+ggplot(summary_data, aes(x = date_time_dept, y = TotalOL, fill = `Departure Terminal`)) +
+  geom_bar(stat = "identity", position = position_dodge(preserve="single")) +
+  labs(title = "Total Overloads May to Oct 2023",
+       x = "Departure Time",
+       y = "Total Overloads")  +
+  theme_bw() + theme(legend.position="bottom")
+
+summary_data <- df_am_pm %>%
+  group_by(date_time_dept, Month, `Departure Terminal`) %>%
+  summarize(TotalVehicles = sum(`Total Veh`),
+            TotalPassengers = sum(`Total Pass`),
+            TotalOL = sum(`Total O/L`))
+
+# Total Vehicles by Time of Day as Faceted Bar Graph, split by Departure Terminal
+ggplot(summary_data, aes(x = date_time_dept, y = TotalOL, fill = `Departure Terminal`)) +
+  geom_bar(stat = "identity", position = position_dodge(preserve="single")) +
+  facet_wrap(~Month, ncol = 2) +
+  labs(title = "Total Overloads May to Oct 2023",
+       x = "Departure Time",
+       y = "Total Overloads")  +
+  theme_minimal() + theme(legend.position="bottom")
+
+```
+
+## Totals over each period
+
+```{r echo = FALSE, warning=FALSE, message=FALSE}
+#summary_data_over_time = summary_data_over_time %>% mutate(passengerperVehicle=SumTotalPassengers/SumTotalVehicles)
+#sum_totals = summary_data_over_time %>% group_by(Ferry) %>% summarise(SumTotalVehicles = sum(SumTotalVehicles), SumTotalPassengers = sum(SumTotalPassengers), passengerperVehicle=mean(SumTotalPassengers/SumTotalVehicles))
+#sum_total = summary_data %>% mutate(passengerperVehicle=SumTotalPassengers/SumTotalVehicles)
+#knitr::kable(summary_data_over_time)
+knitr::kable(summary_data)
+```
+
+
+
+
+
+
+

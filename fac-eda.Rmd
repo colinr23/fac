@@ -1,0 +1,260 @@
+---
+title: "FAC-eda"
+author: "C.Robertson"
+date: "2023-10-16"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+#knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data Description
+
+The data set includes the following data fields:
+
+- `Departure Terminal` - 
+- `Arrival Terminal` -
+- `Vessel` - 
+- `Scheduled Depature Time` - 
+- `Actual Departure Time` -  
+- `Bus`, `Semi`, `Comm`, `Pvoh`, `Pvuh`, `Mtcy` - Bus, Commercial, Passenger Overheight, Passenger Underheight, Motorcyle
+- `Total Veh` - Total Vehicles
+- `Foot Pass` - Number of Foot Passengers
+- `Veh Pass` -  Number of Passengers in Vehicles
+- `Total Pass` - Total Number of Passengers
+- `Total O/L` - Total overloaded (unclear if this is an estimate based on # left in the lot..)
+
+The time period covered by this data set is from Nov 2021 to April 2023, with the transition to the two ferry system using *Kwigis* and *Gwawis* ferries occurring on April 12, 2022. After some investigation, it appears the passenger breakdown (Foot vs Vehicle) is not consistently populated, but Totals of passengers should be accurate.
+
+
+```{r echo = FALSE, warning=FALSE, message=FALSE}
+library("readr")
+library("readxl")
+library("ggplot2")
+library("dplyr")
+library("lubridate")
+df3 <- read_excel("data/Rte 19 - Sail by Sail Nov 22 - Apr 23.xlsx", 
+     col_types = c("text", "text", "text", 
+         "text", "numeric", "date", "date", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric"))
+df2 <- read_excel("data/Rte 19- Sail by Sail May 22 - Oct 22.xlsx", 
+     col_types = c("text", "text", "text", 
+         "text", "numeric", "date", "date", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric"))
+df1 <- read_excel("data/Rte 19 - Sail by Sail Nov 21 - Apr 22 .xlsx", 
+     col_types = c("text", "text", "text", 
+         "text", "numeric", "date", "date", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric"))
+df <- rbind(df1, df3) #df2, df3)
+df$Hour <- as.numeric(format(df$`Sched Dept Ts`, '%H'))
+df$Year <- as.numeric(format(df$`Sched Dept Ts`, '%Y'))
+df$Month <- as.numeric(format(df$`Sched Dept Ts`, '%m'))
+df$Day <- as.numeric(format(df$`Sched Dept Ts`, '%d'))
+```
+
+
+
+## Observed Patterns
+
+### General Traffic Pattern - Comparing Nov-Apr for Quinsam (2021-2022) and Island Class (2022-2023))
+
+```{r echo = FALSE, warning=FALSE, message=FALSE}
+df <- df %>% mutate(DayOfWeek = wday(`Sched Dept Ts`, label = TRUE))
+
+
+df$Ferry <- df$Vessel
+df$Ferry[df$Ferry %in% c("Island Gwawis", "Island Kwigwis")] <- "Island Class"
+
+summary_data <- df %>%
+  group_by(Hour, DayOfWeek, Ferry) %>%
+  summarize(TotalVehicles = sum(`Total Veh`),
+            TotalPassengers = sum(`Total Pass`)) %>% filter(Ferry %in% c("Quinsam", "Island Class"))
+
+# Total Vehicles by Time of Day as Faceted Bar Graph, split by Departure Terminal
+ggplot(summary_data, aes(x = Hour, y = TotalVehicles, fill = Ferry)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~DayOfWeek, ncol = 2) +
+  labs(title = "Total Vehicles by Time of Day, Nov 21 - Apr 22 (Quinsam), Nov 22 - Apr 23 (Island Class)",
+       x = "Hour of Day",
+       y = "Total Vehicles")  +
+  theme_minimal() + theme(legend.position="bottom")
+
+# Total Passengers by Time of Day as Faceted Bar Graph, split by Departure Terminal
+# Total Vehicles by Time of Day as Faceted Bar Graph, split by Departure Terminal
+
+ggplot(summary_data, aes(x = Hour, y = TotalPassengers, fill = Ferry)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~DayOfWeek, ncol = 2) +
+  labs(title = "Total Passengers by Time of Day, Nov 21 - Apr 22 (Quinsam), Nov 22 - Apr 23 (Island Class)",
+       x = "Hour of Day",
+       y = "Total Passengers") +
+  theme_minimal() + theme(legend.position="bottom")
+
+df2 <- df %>% mutate(WeekdayOrWeekend = ifelse(DayOfWeek %in% c("Sat", "Sun"), "Weekend", "Weekday")) %>%
+  mutate(Month =format(`Actual Dept Ts`, "%b"))
+
+
+# Create summary data
+summary_data_over_time <- df2 %>%
+  group_by(Month, Ferry) %>% filter(Ferry %in% c("Quinsam", "Island Class")) %>%
+  summarize(SumTotalVehicles = sum(`Total Veh`),
+            SumTotalPassengers = sum(`Total Pass`))
+
+ggplot(filter(summary_data_over_time, Month != "Apr"), aes(x = factor(Month, levels=c("Nov", "Dec", "Jan", "Feb", "Mar", "Apr")), y = SumTotalVehicles, group=Ferry)) +
+  geom_line(aes(color=Ferry)) + geom_point() +
+  labs(title = "Total Vehicles Over Time (by Month)",
+       x = "Month",
+       y = "Total Vehicles")  +
+  theme_minimal() + theme(legend.position="bottom")
+
+ggplot(filter(summary_data_over_time, Month != "Apr"), aes(x = factor(Month, levels=c("Nov", "Dec", "Jan", "Feb", "Mar", "Apr")), y = SumTotalPassengers, group=Ferry)) +
+  geom_line(aes(color=Ferry)) + geom_point() +
+  labs(title = "Total Passengers Over Time (by Month)",
+       x = "Month",
+       y = "Total Passengers") +
+  theme_minimal() + theme(legend.position="bottom")
+
+```
+
+## Totals over each period
+
+```{r echo = FALSE, warning=FALSE, message=FALSE}
+summary_data_over_time = summary_data_over_time %>% mutate(passengerperVehicle=SumTotalPassengers/SumTotalVehicles)
+sum_totals = summary_data_over_time %>% group_by(Ferry) %>% summarise(SumTotalVehicles = sum(SumTotalVehicles), SumTotalPassengers = sum(SumTotalPassengers), passengerperVehicle=mean(SumTotalPassengers/SumTotalVehicles))
+sum_total = sum_totals %>% mutate(passengerperVehicle=SumTotalPassengers/SumTotalVehicles)
+knitr::kable(summary_data_over_time)
+knitr::kable(sum_total)
+```
+
+
+## Island Class Ferries, May 2022 - Apr 2023
+
+
+```{r echo = FALSE, warning=FALSE, message=FALSE}
+
+df3 <- read_excel("data/Rte 19 - Sail by Sail Nov 22 - Apr 23.xlsx", 
+     col_types = c("text", "text", "text", 
+         "text", "numeric", "date", "date", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric"))
+df2 <- read_excel("data/Rte 19- Sail by Sail May 22 - Oct 22.xlsx", 
+     col_types = c("text", "text", "text", 
+         "text", "numeric", "date", "date", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric"))
+df <- rbind(df2, df3)
+df$Hour <- as.numeric(format(df$`Sched Dept Ts`, '%H'))
+df$Year <- as.numeric(format(df$`Sched Dept Ts`, '%Y'))
+df$Month <- as.numeric(format(df$`Sched Dept Ts`, '%m'))
+df$Day <- as.numeric(format(df$`Sched Dept Ts`, '%d'))
+df$Delay <- df$`Actual Dept Ts` - df$`Sched Dept Ts`
+df$Delay <- as.numeric(df$Delay) / 60
+df <- df %>% mutate(DayOfWeek = wday(`Sched Dept Ts`, label = TRUE))
+
+summary_data <- df %>%
+  group_by(Hour, DayOfWeek, `Departure Terminal`) %>%
+  summarize(TotalDelay = sum(Delay),
+            TotalOverLoad = sum(`Total O/L`))
+summary_data2 <- df %>%
+  group_by(Hour, Month, `Departure Terminal`) %>%
+  summarize(TotalDelay = sum(Delay),
+            TotalOverLoad = sum(`Total O/L`))
+summary_data2$Month <- factor(summary_data2$Month, labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")) 
+summary_data2 <- summary_data2 %>% filter(TotalDelay>=0)
+```
+
+### Overloads
+
+```{r echo = FALSE, warning=FALSE, message=FALSE}
+ggplot(summary_data, aes(x = Hour, y = TotalOverLoad, fill=`Departure Terminal`)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    facet_wrap(~DayOfWeek, ncol = 2) +
+    labs(title = "Overloads by Time of Day, May 22 - Apr 23",
+         x = "Hour of Day",
+         y = "Total # of Overloads") +
+    theme_minimal()  + theme(legend.position="bottom")
+
+ggplot(summary_data2, aes(x = Hour, y = TotalOverLoad, fill=`Departure Terminal`)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    facet_wrap(~Month, ncol = 2) +
+    labs(title = "Overloads by Time of Day, May 22 - Apr 23",
+         x = "Hour of Day",
+         y = "Total # of Overloads") +
+    theme_minimal()  + theme(legend.position="bottom")
+
+```
+
+
+### Delays
+
+```{r echo = FALSE, warning=FALSE, message=FALSE}
+
+ggplot(summary_data, aes(x = Hour, y = TotalDelay/60, fill=`Departure Terminal`)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    facet_wrap(~DayOfWeek, ncol = 2) +
+    labs(title = "Delay (Hrs) by Time of Day, May 22 - Apr 23",
+         x = "Hour of Day",
+         y = "Total Delay Time (Hrs)") +
+    theme_minimal()  + theme(legend.position="bottom")
+
+ggplot(summary_data2, aes(x = Hour, y = TotalDelay/60, fill=`Departure Terminal`)) +
+    geom_bar(stat = "identity", position = "dodge") +
+    facet_wrap(~Month, ncol = 2) +
+    labs(title = "Delay (Hrs) by Time of Day, May 22 - Apr 23",
+         x = "Hour of Day",
+         y = "Total Delay Time (Hrs)") +
+    theme_minimal()  + theme(legend.position="bottom")
+    
+```
+
+### Efficiency
+
+Comparing # of vehicles to # of passengers (totals).
+
+```{r echo = FALSE, warning=FALSE, message=FALSE}
+df <- df %>% dplyr::filter(`Total Veh` > 0)
+df <- df %>% mutate(Efficiency = `Total Pass` / (`Total Veh`))
+
+ggplot(df, aes(x=`Total Veh`, y = `Total Pass`)) + geom_point(aes(color=`Departure Terminal`)) +
+    labs(title = "Passenger Total vs. Vechicle Total",
+         x = "Total Vehicle Count",
+         y = "Total Passenger Count") + theme_minimal() + theme(legend.position="bottom")
+
+summary_data <- df %>%
+  group_by(Hour, DayOfWeek, `Departure Terminal`) %>%
+  summarize(Efficiency = mean(Efficiency))
+
+ggplot(summary_data, aes(x = Hour, y = Efficiency, fill = `Departure Terminal`))  +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~DayOfWeek, ncol = 3) +
+  labs(title = "Efficiency by Time of Day",
+       x = "Hour of Day",
+       y = "Efficiency") +
+  theme_minimal()
+#2. What travel patterns emerge from existing data?  From observation, it is clear there is a pattern to #the commercial traffic.  What about the largest demographic on our island, older citizens in smaller #households?  When do they travel?  Yes, we believe this is part of the congestion on a weekly basis on #Thursdays, but when else are those “experience card holders” travelling?  How, if needed, could this #demand be relocated.
+
+#3. Has there been an increase in the frequency of travel basis upon the schedule (more frequent sailings) #from a particular set of “experience card holders” and when?  In other words, have our existing travellers #changed their travel habits?
+
+```
+
